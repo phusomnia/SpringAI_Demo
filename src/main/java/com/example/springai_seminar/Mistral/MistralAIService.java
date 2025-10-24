@@ -62,7 +62,7 @@ public class MistralAIService {
     }
     
     /* GENERATE DATA WITH PROMPT */
-    public void generateBooksFromPrompt(String userPrompt) {
+    public List<Book> generateBooksFromPrompt(String userPrompt) {
         String prompt = """
         Bạn là hệ thống sinh dữ liệu sách.
         Hãy đọc yêu cầu của người dùng và tạo danh sách sách tương ứng.
@@ -72,6 +72,7 @@ public class MistralAIService {
 
         Chỉ trả về JSON với định dạng sau, không có bất kỳ văn bản bổ sung nào. 
         Đảm bảo không có ký tự bổ sung hoặc khối mã markdown:
+        Mô tả về nội dung, cốt truyện của cuốn sách cụ thể và chi tiết
         [
           {"title": "string", "author": "string", "description": "string"},
           ...
@@ -100,6 +101,8 @@ public class MistralAIService {
             books.forEach(book -> book.setId(UUID.randomUUID().toString()));
             
             saveBooksAsVectors(books);
+            
+            return books;
         } catch (Exception e) {
             throw new RuntimeException("Cannot parse AI response", e);
         }

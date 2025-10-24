@@ -13,10 +13,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+import static org.springframework.data.redis.connection.ReactiveStreamCommands.AddStreamRecord.body;
+
 @RestController
 @RequestMapping("/api/v1/")
 @Tag(name = "LLM")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class AIController {
     private final MistralAIService _service;
 
@@ -30,13 +33,20 @@ public class AIController {
     }
 
     @PostMapping("/generate")
-    public ResponseEntity<String> generateBooks(@RequestBody ChatRequestDTO req) {
-        _service.generateBooksFromPrompt(req.getPrompt());
-        return ResponseEntity.status(HttpStatus.CREATED).body("Ok");
+    public ResponseEntity<Object> generateBooks(@RequestBody ChatRequestDTO req) {
+        var result = _service.generateBooksFromPrompt(req.getPrompt());
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "prompt", req.getPrompt(),
+                "result", result
+        ));
     }
 
-    @GetMapping("/search")
-    public List<Map<String, Object>> searchByTitle(@RequestBody SearchRequestDTO req) {
-        return _service.searchByPrompt(req);
+    @PostMapping("/search")
+    public ResponseEntity<Object> searchByTitle(@RequestBody SearchRequestDTO req) {
+        var result =  _service.searchByPrompt(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "prompt", req.getQuery(),
+                "result", result
+        ));
     }
 }
