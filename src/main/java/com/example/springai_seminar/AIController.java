@@ -3,7 +3,7 @@ package com.example.springai_seminar;
 import com.example.springai_seminar.Mistral.MistralAIService;
 import com.example.springai_seminar.Mistral.dtos.ChatRequestDTO;
 import com.example.springai_seminar.Mistral.dtos.SearchRequestDTO;
-import com.example.springai_seminar.entities.Book;
+//import com.example.springai_seminar.entities.Book;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -34,7 +34,7 @@ public class AIController {
 
     @PostMapping("/generate")
     public ResponseEntity<Object> generateBooks(@RequestBody ChatRequestDTO req) {
-        var result = _service.generateBooksFromPrompt(req.getPrompt());
+        var result = _service.generateDataFromPrompt(req.getPrompt());
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "prompt", req.getPrompt(),
                 "result", result

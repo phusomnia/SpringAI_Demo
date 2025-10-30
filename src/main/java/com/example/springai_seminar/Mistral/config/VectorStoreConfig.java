@@ -30,11 +30,11 @@ public class VectorStoreConfig
                 .indexName("book-index")
                 .prefix("book:")
                 .initializeSchema(true)
-                .contentFieldName("content")
-                .vectorAlgorithm(RedisVectorStore.Algorithm.HSNW)
                 .embeddingFieldName("embedding")
                 .metadataFields(
-                        RedisVectorStore.MetadataField.text("title")
+                        RedisVectorStore.MetadataField.text("title"),
+                        RedisVectorStore.MetadataField.text("description"),
+                        RedisVectorStore.MetadataField.text("author")
                 )
                 .build();
     }

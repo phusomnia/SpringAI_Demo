@@ -4,9 +4,9 @@ import com.example.springai_seminar.Mistral.config.MistralAIConfig;
 import com.example.springai_seminar.Mistral.config.VectorStoreConfig;
 import com.example.springai_seminar.Mistral.dtos.SearchRequestDTO;
 import com.example.springai_seminar.Mistral.dtos.TopicInfo;
-import com.example.springai_seminar.Mistral.repos.BookRepository;
+//import com.example.springai_seminar.Mistral.repos.BookRepository;
 import com.example.springai_seminar.Mistral.dtos.ChatRequestDTO;
-import com.example.springai_seminar.entities.Book;
+//import com.example.springai_seminar.entities.Book;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +17,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.stereotype.Service;
 
+import java.io.Console;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MistralAIService {
     private final MistralAIConfig _config;
-    private final BookRepository _bookRepo;
     private final ObjectMapper _objectMapper = new ObjectMapper();
     private final VectorStoreConfig _vectorConfig;
 
@@ -62,26 +62,10 @@ public class MistralAIService {
     }
     
     /* GENERATE DATA WITH PROMPT */
-    public List<Book> generateBooksFromPrompt(String userPrompt) {
-        String prompt = """
-        Bạn là hệ thống sinh dữ liệu sách.
-        Hãy đọc yêu cầu của người dùng và tạo danh sách sách tương ứng.
-
-        Yêu cầu người dùng:
-        %s
-
-        Chỉ trả về JSON với định dạng sau, không có bất kỳ văn bản bổ sung nào. 
-        Đảm bảo không có ký tự bổ sung hoặc khối mã markdown:
-        Mô tả về nội dung, cốt truyện của cuốn sách cụ thể và chi tiết
-        [
-          {"title": "string", "author": "string", "description": "string"},
-          ...
-        ]
-        """.formatted(userPrompt);
-
+    public List<Map<String, Object>> generateDataFromPrompt(String userPrompt) {
         try {
             String json = _config.mistralChatClient()
-                    .prompt(prompt)
+                    .prompt(userPrompt)
                     .call()
                     .content();
             
@@ -95,27 +79,40 @@ public class MistralAIService {
                 json = json.substring(0, json.length() - 3);
             }
             json = json.trim();
+
+            List<Map<String, Object>> result = _objectMapper.readValue(json, new TypeReference<>(){});
             
-            List<Book> books = _objectMapper.readValue(json, new TypeReference<List<Book>>() {});
+            this.saveAsVectors(result);
             
-            books.forEach(book -> book.setId(UUID.randomUUID().toString()));
-            
-            saveBooksAsVectors(books);
-            
-            return books;
+            return result;
         } catch (Exception e) {
             throw new RuntimeException("Cannot parse AI response", e);
         }
     }
+    
+    public void saveAsVectors(List<Map<String, Object>> data)
+    {
+        List<Document> documents = data.stream()
+                .map(item -> {
+                    String content = item.getOrDefault("content", "").toString();
+                    
+                    Map<String, Object> metadata = new HashMap<>();
+//                    for (Map.Entry<String, Object> entry : item.entrySet()) {
+//                        if (!"content".equals(entry.getKey())) {
+//                            metadata.put(entry.getKey(), entry.getValue());
+//                        }
+//                    }
+//                    metadata.put("title", item.getOrDefault("title", ""));
+//                    metadata.put("description", item.getOrDefault("description", ""));
+//                    metadata.put("author", item.getOrDefault("author", ""));
 
-    public void saveBooksAsVectors(List<Book> books) {
-        List<Document> docs = books.stream()
-                .map(Book::toDocument)
-                .toList();
-        _vectorConfig.vectorStore().add(docs);
+                    return new Document(content, metadata);
+                }).collect(Collectors.toList());
+        
+        _vectorConfig.vectorStore().add(documents);
     }
-
-    public List<Map<String, Object>> searchByPrompt(SearchRequestDTO req) {
+    
+    public List<Object> searchByPrompt(SearchRequestDTO req) {
         SearchRequest request = SearchRequest.builder()
                 .query(req.getQuery()) 
                 .topK(Math.max(1, req.getTopK()))
@@ -129,10 +126,26 @@ public class MistralAIService {
                 .collect(Collectors.toList());
     }
 
-    private Map<String,Object> documentToMap(Document document) {
-        Map<String,Object> map = new HashMap<>(document.getMetadata());
-        map.put("content", document.getFormattedContent());
-        map.put("score", document.getScore());
+    private Map<String, Object> documentToMap(Document doc) {
+        Map<String, Object> map = new HashMap<>();
+        if (doc.isText()) {
+            map.put("content", doc.getText());
+        } else {
+            map.put("media", doc.getMedia());
+        }
+
+        Map<String, Object> metadata = doc.getMetadata();
+        System.out.println("DEBUG - Full metadata: " + metadata);
+        if (!metadata.isEmpty()) {
+            map.putAll(metadata);
+        }
+        
+        map.put("id", doc.getId());
+        Double score = doc.getScore();
+        if (score != null) {
+            map.put("score", score);
+        }
+
         return map;
     }
 }
