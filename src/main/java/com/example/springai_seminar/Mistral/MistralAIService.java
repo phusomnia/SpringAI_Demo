@@ -4,9 +4,7 @@ import com.example.springai_seminar.Mistral.config.MistralAIConfig;
 import com.example.springai_seminar.Mistral.config.VectorStoreConfig;
 import com.example.springai_seminar.Mistral.dtos.SearchRequestDTO;
 import com.example.springai_seminar.Mistral.dtos.TopicInfo;
-//import com.example.springai_seminar.Mistral.repos.BookRepository;
 import com.example.springai_seminar.Mistral.dtos.ChatRequestDTO;
-//import com.example.springai_seminar.entities.Book;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -15,13 +13,13 @@ import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import java.io.Console;
+import reactor.core.publisher.Flux;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,7 +32,23 @@ public class MistralAIService {
 
     public String chatModel(ChatRequestDTO req)
     {
-        return  _config.mistralAiChatModel().call(req.getPrompt());
+        log.info("Starting async task on thread: {}", Thread.currentThread().getName());
+        String result = _config.mistralChatClient().prompt(req.getPrompt()).call().content();
+        log.info("Completed task on thread: {}", Thread.currentThread().getName());
+        return result;
+    }
+    
+    @Async("taskExecutor")
+    public CompletableFuture<String> chatModelAsync(ChatRequestDTO req)
+    {
+        log.info("Starting async task on thread: {}", Thread.currentThread().getName());
+        String result = _config.mistralChatClient().prompt(req.getPrompt()).call().content();
+        log.info("Completed task on thread: {}", Thread.currentThread().getName());
+        return CompletableFuture.completedFuture(result);
+    }
+
+    public Flux<String> chatModelFlux(ChatRequestDTO req) {
+        return _config.mistralChatClient().prompt(req.getPrompt()).stream().content();
     }
     
     /* STRUCTED OUTPUT */
@@ -97,14 +111,11 @@ public class MistralAIService {
                     String content = item.getOrDefault("content", "").toString();
                     
                     Map<String, Object> metadata = new HashMap<>();
-//                    for (Map.Entry<String, Object> entry : item.entrySet()) {
-//                        if (!"content".equals(entry.getKey())) {
-//                            metadata.put(entry.getKey(), entry.getValue());
-//                        }
-//                    }
-//                    metadata.put("title", item.getOrDefault("title", ""));
-//                    metadata.put("description", item.getOrDefault("description", ""));
-//                    metadata.put("author", item.getOrDefault("author", ""));
+                    for (Map.Entry<String, Object> entry : item.entrySet()) {
+                        if (!"content".equals(entry.getKey())) {
+                            metadata.put(entry.getKey(), entry.getValue());
+                        }
+                    }
 
                     return new Document(content, metadata);
                 }).collect(Collectors.toList());
@@ -112,7 +123,7 @@ public class MistralAIService {
         _vectorConfig.vectorStore().add(documents);
     }
     
-    public List<Object> searchByPrompt(SearchRequestDTO req) {
+    public List<Map<String, Object>> searchByPrompt(SearchRequestDTO req) {
         SearchRequest request = SearchRequest.builder()
                 .query(req.getQuery()) 
                 .topK(Math.max(1, req.getTopK()))

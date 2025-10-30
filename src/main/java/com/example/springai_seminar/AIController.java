@@ -9,9 +9,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static org.springframework.data.redis.connection.ReactiveStreamCommands.AddStreamRecord.body;
 
@@ -22,7 +25,7 @@ import static org.springframework.data.redis.connection.ReactiveStreamCommands.A
 @CrossOrigin(origins = "*", allowedHeaders = "*")
 public class AIController {
     private final MistralAIService _service;
-
+    
     @PostMapping("prompt")
     public ResponseEntity<Object> prompt(@RequestBody ChatRequestDTO req) {
         var resultModel = _service.chatModel(req);
@@ -30,6 +33,29 @@ public class AIController {
                 "prompt", req.getPrompt(),
                 "result", resultModel
         ));
+    }
+
+    @PostMapping("promptAsync")
+    public CompletableFuture<ResponseEntity<Object>> promptAsync(@RequestBody ChatRequestDTO req) {
+        var resultModel = _service.chatModelAsync(req);
+        return resultModel.thenApply(result -> 
+            ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "prompt", req.getPrompt(),
+                "result", result
+            ))
+        );
+    }
+    
+    @PostMapping("chunk")
+    public Flux<ResponseEntity<Map<String, Object>>> promptMono(@RequestBody ChatRequestDTO req) {
+        var resultModel = _service.chatModelFlux(req);
+        return resultModel
+                .map(result -> ResponseEntity.status(HttpStatus.CREATED)
+                        .body(Map.of(
+                                "prompt", req.getPrompt(), 
+                                "result", result)
+                        )
+                );
     }
 
     @PostMapping("/generate")
